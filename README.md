@@ -6,8 +6,40 @@ Mongoose 9 on MongoDB, JWT auth, bcrypt passwords, in an Nx monorepo with a smal
 - `apps/server`: the API (graded part)
 - `apps/note-client`: React 19 + Vite frontend (deliberately minimal, see [Frontend](#frontend))
 
-Quick links: [Indexes](#indexes) · [explain() output](#explain-output) · [Aggregations](#aggregations) ·
-[Setup](#setup) · [API](#api) · [curl walkthrough](#try-it-with-curl) · [Known limits](#known-limits)
+Quick links: [Demo accounts](#demo-accounts) · [Indexes](#indexes) · [explain() output](#explain-output) ·
+[Aggregations](#aggregations) · [Setup](#setup) · [API](#api) · [curl walkthrough](#try-it-with-curl) ·
+[Known limits](#known-limits)
+
+---
+
+## Demo accounts
+
+`yarn seed` creates these accounts (see [Setup](#setup)). They are test values only, on
+reserved `example.com` addresses.
+
+| Role | Email | Password | Seeded data |
+|---|---|---|---|
+| **admin** | `admin@example.com` | `admin-demo-pass` | 2 notes, no posts |
+| user | `maya@example.com` | `user-demo-pass` | 6 notes, 5 posts |
+| user | `liam@example.com` | `user-demo-pass` | 4 notes, 3 posts |
+| user | `sofia@example.com` | `user-demo-pass` | 3 notes, 3 posts |
+| user | `noah@example.com` | `user-demo-pass` | 3 notes, 2 posts |
+| user | `ava@example.com` | `user-demo-pass` | 3 notes, 2 posts |
+| user | `ethan@example.com` | `user-demo-pass` | 2 notes, no posts |
+| user | `zara@example.com` | `user-demo-pass` | 3 notes, 2 posts |
+| user | `lucas@example.com` | `user-demo-pass` | 2 notes, 2 posts |
+| user | `mia@example.com` | `user-demo-pass` | 2 notes, 1 post |
+| user | `omar@example.com` | `user-demo-pass` | no interests, notes or posts |
+
+What to try:
+- **As the admin:** every user's notes, the user list at `/admin/users` (change roles, delete
+  users), and `GET /api/users/grouped-by-interests`.
+- **As Maya:** only her own notes; her 5 posts at `GET /api/users/<her id>/posts`.
+- **As a user:** another user's note is a `404`, and any admin route is a `403`.
+
+To use them in the interactive API reference at <http://localhost:3000/api/docs>, sign in
+with `POST /auth/login`, then paste the `accessToken` into its **Authentication** (bearer token)
+field.
 
 ---
 
@@ -248,12 +280,8 @@ Start the API on <http://localhost:3000/api>:
 yarn nx serve @org/server
 ```
 
-Demo logins (test values only, on `example.com` addresses):
-
-| Role | Email | Password |
-|---|---|---|
-| admin | `admin@example.com` | `admin-demo-pass` |
-| user | `maya@example.com` (or any `<first name>@example.com`: liam, sofia, noah, ava, ethan, zara, lucas, mia, omar) | `user-demo-pass` |
+Sign in with the [demo accounts](#demo-accounts): `admin@example.com` / `admin-demo-pass`, or
+`maya@example.com` / `user-demo-pass`.
 
 Regenerate the index evidence (writes `apps/server/docs/explain.md`, exits 1 if an index is
 not used):

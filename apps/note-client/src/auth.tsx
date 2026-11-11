@@ -1,12 +1,32 @@
-import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
-import { api, AuthResponse, json, SESSION_EXPIRED, TOKEN_KEY, User } from './api';
+import {
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+import {
+  api,
+  AuthResponse,
+  json,
+  SESSION_EXPIRED,
+  TOKEN_KEY,
+  User,
+} from './api';
+import { useToast } from './toast';
 
 const USER_KEY = 'user';
 
 interface AuthState {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (input: { name: string; email: string; password: string; interests: string[] }) => Promise<void>;
+  register: (input: {
+    name: string;
+    email: string;
+    password: string;
+    interests: string[];
+  }) => Promise<void>;
   logout: () => void;
 }
 
@@ -23,6 +43,7 @@ function readUser(): User | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(readUser);
+  const toast = useToast();
 
   const start = useCallback((res: AuthResponse) => {
     localStorage.setItem(TOKEN_KEY, res.accessToken);
@@ -48,22 +69,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    window.addEventListener(SESSION_EXPIRED, logout);
-    return () => window.removeEventListener(SESSION_EXPIRED, logout);
-  }, [logout]);
+    const expired = () => {
+      logout();
+      toast({
+        title: 'Session expired',
+        detail: 'Sign in again to continue.',
+        tone: 'error',
+      });
+    };
+    window.addEventListener(SESSION_EXPIRED, expired);
+    return () => window.removeEventListener(SESSION_EXPIRED, expired);
+  }, [logout, toast]);
 
   const login = useCallback(
     async (email: string, password: string) =>
-      start(await api<AuthResponse>('/auth/login', { method: 'POST', body: json({ email, password }) })),
+      start(
+        await api<AuthResponse>('/auth/login', {
+          method: 'POST',
+          body: json({ email, password }),
+        }),
+      ),
     [start],
   );
 
   const register = useCallback<AuthState['register']>(
-    async (input) => start(await api<AuthResponse>('/auth/register', { method: 'POST', body: json(input) })),
+    async (input) =>
+      start(
+        await api<AuthResponse>('/auth/register', {
+          method: 'POST',
+          body: json(input),
+        }),
+      ),
     [start],
   );
 
-  return <AuthContext.Provider value={{ user, login, register, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, login, register, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

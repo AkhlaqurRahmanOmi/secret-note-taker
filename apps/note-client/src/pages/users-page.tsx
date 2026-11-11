@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, apiPage, json, Page, Role, User } from '../api';
 import { useAuth } from '../auth';
+import { useToast } from '../toast';
 import { formatDay, indexNo } from '../lib/format';
 import { list as listMotion, row } from '../lib/motion';
 import { Alert, caption, ConfirmButton, Pager, Select } from '../ui';
@@ -27,19 +28,35 @@ export function UsersPage() {
     };
   }, [page, version]);
 
-  async function act(run: () => Promise<unknown>) {
+  const toast = useToast();
+
+  async function act(
+    run: () => Promise<unknown>,
+    done: { title: string; detail: string },
+  ) {
     setError('');
     try {
       await run();
       setVersion((v) => v + 1);
+      toast(done);
     } catch (err) {
       setError((err as Error).message);
     }
   }
 
   const setRole = (u: User, role: Role) =>
-    act(() => api(`/users/${u._id}`, { method: 'PATCH', body: json({ role }) }));
-  const remove = (u: User) => act(() => api(`/users/${u._id}`, { method: 'DELETE' }));
+    act(
+      () => api(`/users/${u._id}`, { method: 'PATCH', body: json({ role }) }),
+      {
+        title: 'Role changed',
+        detail: `${u.name} is now ${role === 'admin' ? 'an admin' : 'a user'}.`,
+      },
+    );
+  const remove = (u: User) =>
+    act(() => api(`/users/${u._id}`, { method: 'DELETE' }), {
+      title: 'User deleted',
+      detail: `${u.name}, with their notes and posts.`,
+    });
 
   const offset = (page - 1) * LIMIT;
 
@@ -48,7 +65,9 @@ export function UsersPage() {
       <div className="mx-auto max-w-6xl px-5 py-10 sm:px-10">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <h1 className="text-poster font-bold">Users</h1>
-          <p className={caption}>{list ? `${list.meta.total} accounts` : 'Loading…'}</p>
+          <p className={caption}>
+            {list ? `${list.meta.total} accounts` : 'Loading…'}
+          </p>
         </div>
 
         {error && (
@@ -72,26 +91,50 @@ export function UsersPage() {
                 </th>
               </tr>
             </thead>
-            <motion.tbody key={page} variants={listMotion} initial="hidden" animate={list ? 'shown' : 'hidden'}>
+            <motion.tbody
+              key={page}
+              variants={listMotion}
+              initial="hidden"
+              animate={list ? 'shown' : 'hidden'}
+            >
               {list?.data.map((u, i) => {
                 const self = u._id === me?._id;
                 return (
-                  <motion.tr key={u._id} variants={row} className="border-b border-rule align-middle">
-                    <td className="py-3 pr-3 font-semibold tabular-nums text-field">{indexNo(offset + i + 1)}</td>
+                  <motion.tr
+                    key={u._id}
+                    variants={row}
+                    className="border-b border-rule align-middle"
+                  >
+                    <td className="py-3 pr-3 font-semibold tabular-nums text-field">
+                      {indexNo(offset + i + 1)}
+                    </td>
                     <td className="py-3 pr-4 font-semibold">
                       {u.name}
-                      {self && <span className={`ml-2 text-field ${caption}`}>You</span>}
+                      {self && (
+                        <span className={`ml-2 text-field ${caption}`}>
+                          You
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 pr-4">{u.email}</td>
-                    <td className="py-3 pr-4">{u.interests.length ? u.interests.join(', ') : '—'}</td>
-                    <td className="whitespace-nowrap py-3 pr-4">{formatDay(u.createdAt)}</td>
+                    <td className="py-3 pr-4">
+                      {u.interests.length ? u.interests.join(', ') : '—'}
+                    </td>
+                    <td className="whitespace-nowrap py-3 pr-4">
+                      {formatDay(u.createdAt)}
+                    </td>
                     <td className="py-3 pr-4">
                       {self ? (
-                        <span title="You can’t change your own role">Admin</span>
+                        <span title="You can’t change your own role">
+                          Admin
+                        </span>
                       ) : (
                         <label>
                           <span className="sr-only">Role for {u.name}</span>
-                          <Select value={u.role} onChange={(e) => setRole(u, e.target.value as Role)}>
+                          <Select
+                            value={u.role}
+                            onChange={(e) => setRole(u, e.target.value as Role)}
+                          >
                             <option value="user">User</option>
                             <option value="admin">Admin</option>
                           </Select>
@@ -99,7 +142,13 @@ export function UsersPage() {
                       )}
                     </td>
                     <td className="py-3 text-right">
-                      {!self && <ConfirmButton label="Delete" confirmLabel="Delete user" onConfirm={() => remove(u)} />}
+                      {!self && (
+                        <ConfirmButton
+                          label="Delete"
+                          confirmLabel="Delete user"
+                          onConfirm={() => remove(u)}
+                        />
+                      )}
                     </td>
                   </motion.tr>
                 );
@@ -110,7 +159,11 @@ export function UsersPage() {
 
         {list && list.meta.totalPages > 1 && (
           <div className="mt-6">
-            <Pager page={page} totalPages={list.meta.totalPages} onPage={(p) => setParams({ page: String(p) })} />
+            <Pager
+              page={page}
+              totalPages={list.meta.totalPages}
+              onPage={(p) => setParams({ page: String(p) })}
+            />
           </div>
         )}
       </div>

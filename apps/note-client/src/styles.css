@@ -1,7 +1,8 @@
 @import 'tailwindcss' source('../');
 
 @theme {
-  --font-sans: 'Schibsted Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    'Schibsted Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
 
   /* Four sizes, nothing else: display, poster, body, caption (caps). */
   --text-display: clamp(3rem, 6.5vw, 6rem);
@@ -63,9 +64,18 @@
     scrollbar-color: var(--color-rule) transparent;
   }
 
-
   a {
     text-underline-offset: 0.2em;
     text-decoration-thickness: 1px;
+  }
+}
+
+/* The toast's countdown bar (see toast.tsx). */
+@keyframes toast-timer {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
   }
 }

@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import * as ReactDOM from 'react-dom/client';
 import App from './app/app';
 import { AuthProvider } from './auth';
+import { ToastProvider } from './toast';
 
 const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement,
@@ -13,12 +14,14 @@ const root = ReactDOM.createRoot(
 root.render(
   <StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        {/* Honour the OS "reduce motion" setting everywhere. */}
-        <MotionConfig reducedMotion="user">
-          <App />
-        </MotionConfig>
-      </AuthProvider>
+      {/* Honour the OS "reduce motion" setting everywhere. */}
+      <MotionConfig reducedMotion="user">
+        <ToastProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </ToastProvider>
+      </MotionConfig>
     </BrowserRouter>
   </StrictMode>,
 );

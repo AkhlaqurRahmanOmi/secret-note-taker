@@ -1,10 +1,11 @@
-import { AnimatePresence, motion } from 'motion/react';
-import { FormEvent, useEffect, useState } from 'react';
+import { motion } from 'motion/react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, json, Note } from '../api';
 import { useAuth } from '../auth';
 import { formatStamp, indexNo } from '../lib/format';
 import { quick } from '../lib/motion';
+import { useToast } from '../toast';
 import { Alert, Button, caption, ConfirmButton } from '../ui';
 import { useNotes } from './notes-page';
 
@@ -24,8 +25,11 @@ function NoteEditor({ id }: { id: string }) {
   const [note, setNote] = useState<Note | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [editing, setEditing] = useState(isNew);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const toast = useToast();
 
   useEffect(() => {
     if (isNew) return;
@@ -44,13 +48,35 @@ function NoteEditor({ id }: { id: string }) {
       );
   }, [id, isNew]);
 
-  const dirty = isNew ? title.trim() !== '' || content.trim() !== '' : title !== note?.title || content !== note?.content;
+  // Entering edit mode puts the cursor at the end of the text.
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!editing || isNew || !el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [editing, isNew]);
+
+  function cancel() {
+    setTitle(note?.title ?? '');
+    setContent(note?.content ?? '');
+    setError('');
+    setEditing(false);
+  }
+
+  const dirty = isNew
+    ? title.trim() !== '' || content.trim() !== ''
+    : title !== note?.title || content !== note?.content;
   const number = isNew ? total + 1 : numberOf(id);
 
   async function save(e?: FormEvent) {
     e?.preventDefault();
-    if (!title.trim() || !content.trim() || busy) {
-      setError(!title.trim() ? 'Give the note a title.' : !content.trim() ? 'Write something before saving.' : '');
+    if (!editing || busy) return;
+    if (!title.trim() || !content.trim()) {
+      setError(
+        !title.trim()
+          ? 'Give the note a title.'
+          : 'Write something before saving.',
+      );
       return;
     }
     setBusy(true);
@@ -60,12 +86,19 @@ function NoteEditor({ id }: { id: string }) {
       if (isNew) {
         const created = await api<Note>('/notes', { method: 'POST', body });
         refresh();
+        toast({ title: 'Note created', detail: created.title });
         navigate(`/notes/${created._id}`, { replace: true });
       } else {
-        const updated = await api<Note>(`/notes/${id}`, { method: 'PATCH', body });
+        const updated = await api<Note>(`/notes/${id}`, {
+          method: 'PATCH',
+          body,
+        });
         setNote(updated);
         setTitle(updated.title);
+        setContent(updated.content);
+        setEditing(false);
         refresh();
+        toast({ title: 'Changes saved', detail: updated.title });
       }
     } catch (err) {
       setError((err as Error).message);
@@ -79,6 +112,7 @@ function NoteEditor({ id }: { id: string }) {
     try {
       await api(`/notes/${id}`, { method: 'DELETE' });
       refresh();
+      toast({ title: 'Note deleted', detail: note?.title });
       navigate(`/notes${search}`, { replace: true });
     } catch (err) {
       setError((err as Error).message);
@@ -89,20 +123,32 @@ function NoteEditor({ id }: { id: string }) {
   // On phones the admin label moves next to the back link.
   const back = (
     <div className="mb-6 flex items-baseline justify-between lg:hidden">
-      <Link to={`/notes${search}`} className="text-body font-semibold underline">
+      <Link
+        to={`/notes${search}`}
+        className="text-body font-semibold underline"
+      >
         Back to notes
       </Link>
       {isAdmin && <span className={`text-field ${caption}`}>Admin view</span>}
     </div>
   );
 
-  if (status === 'loading') return <p className="px-5 pt-6 text-body sm:px-10 sm:pt-10 lg:px-14">Opening note…</p>;
+  if (status === 'loading')
+    return (
+      <p className="px-5 pt-6 text-body sm:px-10 sm:pt-10 lg:px-14">
+        Opening note…
+      </p>
+    );
   if (status === 'missing')
     return (
       <div className="px-5 pt-6 sm:px-10 sm:pt-10 lg:px-14">
         {back}
-        <h2 className="max-w-[22ch] text-poster font-bold text-balance">This note doesn’t exist, or it isn’t yours.</h2>
-        <p className="mt-4 max-w-[50ch] text-body">Notes are private to the account that wrote them.</p>
+        <h2 className="max-w-[22ch] text-poster font-bold text-balance">
+          This note doesn’t exist, or it isn’t yours.
+        </h2>
+        <p className="mt-4 max-w-[50ch] text-body">
+          Notes are private to the account that wrote them.
+        </p>
       </div>
     );
 
@@ -136,26 +182,34 @@ function NoteEditor({ id }: { id: string }) {
           <span className="sr-only">Title</span>
           <textarea
             value={title}
+            readOnly={!editing}
+            onDoubleClick={() => setEditing(true)}
             onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
             onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
             placeholder="Untitled"
             maxLength={200}
             rows={1}
             autoFocus={isNew}
-            className="block w-full resize-none overflow-hidden bg-transparent text-poster font-bold text-balance [field-sizing:content] placeholder:text-ink/55 focus-visible:outline-none"
+            className={`block w-full resize-none overflow-hidden bg-transparent text-poster font-bold text-balance [field-sizing:content] placeholder:text-ink/55 focus-visible:outline-none ${editing ? '' : 'cursor-default'}`}
           />
         </label>
       </div>
 
-      <div className="mt-6 border-t border-rule" />
+      {/* The rule turns to the accent colour while editing. */}
+      <div
+        className={`mt-6 border-t transition-colors duration-150 ${editing ? 'border-field' : 'border-rule'}`}
+      />
 
       <label className="flex min-h-0 flex-1 flex-col">
         <span className="sr-only">Note</span>
         <textarea
+          ref={contentRef}
           value={content}
+          readOnly={!editing}
+          onDoubleClick={() => setEditing(true)}
           onChange={(e) => setContent(e.target.value)}
           placeholder="Start writing."
-          className="min-h-48 w-full max-w-[70ch] flex-1 resize-none bg-transparent py-6 text-body leading-[1.7] placeholder:text-ink/60 focus-visible:outline-none"
+          className={`min-h-48 w-full max-w-[70ch] flex-1 resize-none bg-transparent py-6 text-body leading-[1.7] placeholder:text-ink/60 focus-visible:outline-none ${editing ? '' : 'cursor-default'}`}
         />
       </label>
 
@@ -166,19 +220,43 @@ function NoteEditor({ id }: { id: string }) {
       )}
 
       <div className="flex flex-wrap items-center gap-3 border-t border-rule pt-4">
-        {/* Save only exists when there is something to save; otherwise the stamp says it's done. */}
-        <AnimatePresence initial={false} mode="popLayout">
-          {(isNew || dirty) && (
-            <motion.div key="save" initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={quick}>
-              <Button type="submit" disabled={busy}>
-                {busy ? 'Saving…' : isNew ? 'Save note' : 'Save changes'}
+        {editing ? (
+          <>
+            <Button type="submit" disabled={busy || !dirty}>
+              {busy ? 'Saving…' : isNew ? 'Save note' : 'Save changes'}
+            </Button>
+            {!isNew && (
+              <Button
+                type="button"
+                tone="outline"
+                onClick={cancel}
+                disabled={busy}
+              >
+                Cancel
               </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {!isNew && <ConfirmButton label="Delete" confirmLabel="Delete for good" onConfirm={remove} disabled={busy} />}
+            )}
+          </>
+        ) : (
+          <>
+            <Button type="button" onClick={() => setEditing(true)}>
+              Edit
+            </Button>
+            <ConfirmButton
+              label="Delete"
+              confirmLabel="Delete for good"
+              onConfirm={remove}
+              disabled={busy}
+            />
+          </>
+        )}
         <span className={`ml-auto ${caption}`} aria-live="polite">
-          {dirty ? 'Unsaved changes' : note ? `Saved ${formatStamp(note.updatedAt)}` : ''}
+          {dirty
+            ? 'Unsaved changes'
+            : editing && !isNew
+              ? 'Editing'
+              : note
+                ? `Saved ${formatStamp(note.updatedAt)}`
+                : ''}
         </span>
       </div>
     </motion.form>
